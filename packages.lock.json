@@ -1,0 +1,86 @@
+{
+  "packages": [
+    {
+      "version": "2.0.0-git1490",
+      "bytes": 15317167,
+      "file": "mmsource-2.0.0-git1490-windows.zip",
+      "required": true,
+      "sha256": "135a34c9f9e9768d59ae707dd928511984e8f319f0ef6a7dd878c8a4445881a2",
+      "url": "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-2.0.0-git1490-windows.zip",
+      "target": "game"
+    },
+    {
+      "version": "1.0.380",
+      "bytes": 51981336,
+      "file": "counterstrikesharp-with-runtime-windows-1.0.380.zip",
+      "required": true,
+      "sha256": "9a8881f83054a066f3f105d7f97b7c8a683104a4b5a381ea048d6b9a07c11203",
+      "url": "https://github.com/roflmuffin/CounterStrikeSharp/releases/download/v1.0.380/counterstrikesharp-with-runtime-windows-1.0.380.zip",
+      "target": "game"
+    },
+    {
+      "version": "0.9.4",
+      "bytes": 13777417,
+      "file": "AnyBaseLib.zip",
+      "required": true,
+      "sha256": "ab3190f43d7afc95d609bbb755279552fba0283ce0a2681c371601a4bd7867ff",
+      "url": "https://github.com/NickFox007/AnyBaseLibCS2/releases/download/0.9.4/AnyBaseLib.zip",
+      "target": "game"
+    },
+    {
+      "version": "0.9.4",
+      "bytes": 44432,
+      "file": "PlayerSettings.zip",
+      "required": true,
+      "sha256": "6d6645f728dbe07ca37264ab55f228ab4dcb3740cba02c52fbb27ef15faed0ac",
+      "url": "https://github.com/NickFox007/PlayerSettingsCS2/releases/download/0.9.4/PlayerSettings.zip",
+      "target": "game"
+    },
+    {
+      "version": "1.4.1",
+      "bytes": 55162,
+      "file": "MenuManager.zip",
+      "required": true,
+      "sha256": "2ae011c6cebe3ca279d3cb5d15a568f13ae63398be82a98bd65e204a043a13b3",
+      "url": "https://github.com/NickFox007/MenuManagerCS2/releases/download/1.4.1/MenuManager.zip",
+      "target": "game"
+    },
+    {
+      "version": "build-472 (3.3a)",
+      "bytes": 6885052,
+      "file": "WeaponPaints.zip",
+      "required": true,
+      "sha256": "77ed21a938114c33f655aaa4b42b55e76aa92b52f53921ff2fa0ad62eab535b6",
+      "url": "https://github.com/Nereziel/cs2-WeaponPaints/releases/download/build-472/WeaponPaints.zip",
+      "target": "game"
+    },
+    {
+      "version": "11.4.13",
+      "bytes": 95024126,
+      "file": "mariadb-11.4.13-winx64.zip",
+      "required": true,
+      "sha256": "d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2",
+      "url": "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+      "target": "tools"
+    },
+    {
+      "version": "24.22.3",
+      "bytes": 37762649,
+      "file": "node-v24.22.3-win-x64.zip",
+      "required": true,
+      "sha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+      "url": "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
+      "target": "tools"
+    },
+    {
+      "version": "bootstrap snapshot 2026-11-15",
+      "bytes": 774825,
+      "file": "steamcmd.zip",
+      "required": false,
+      "sha256": "7669b170dee42db8ee2273775ed7dfb2d173bdba1b849f70d2c7b379290bce13",
+      "url": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip",
+      "target": "unused"
+    }
+  ],
+  "captured": "2026-11-15"
+}

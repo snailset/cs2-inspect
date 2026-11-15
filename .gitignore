@@ -1,0 +1,18 @@
+# Machine-specific configuration and private/runtime data
+deploy.local.psd1
+**/secrets.json
+**/profile.json
+**/presets.json
+**/settings.json
+**/node_modules/
+**/bin/
+**/obj/
+**/*.log
+packages/*
+!packages/README.md
+artifacts/
+.work/
+*.tmp
+*.zip
+*.7z
+*.sql.dump

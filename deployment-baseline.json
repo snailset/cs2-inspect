@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-15",
+  "packageOverlayFilesCompared": 744,
+  "game": {
+    "patchVersion": "1.41.9.7",
+    "sourceRevision": "11228971",
+    "clientVersion": "2000943",
+    "serverVersion": "2000943"
+  },
+  "catalog": {
+    "items": 2161,
+    "knifeCategories": 20,
+    "gloveCategories": 8,
+    "weaponCategories": 35
+  },
+  "overrides": [
+    {
+      "reason": "Captured deployed CSS gamedata; only Linux ClientPrint signature differs from v1.0.380 archive. Windows signatures unchanged.",
+      "sha256": "edad399385d8a441db282f2e6cf8eff1aa7af546a3bbc79f01750ac935ee9d73",
+      "destination": "server/game/csgo/addons/counterstrikesharp/gamedata/gamedata.json",
+      "file": "overrides/counterstrikesharp/gamedata.json"
+    }
+  ]
+}
