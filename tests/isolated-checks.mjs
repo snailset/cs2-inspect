@@ -14,9 +14,11 @@ const url='http://127.0.0.1:17831';
 const bootstrap=await (await fetch(`${url}/api/bootstrap`)).json();
 assert.equal(bootstrap.catalog.length,2161);
 assert.ok(bootstrap.catalog.every(item=>/^\/images\/\d+\/\d+\.png$/.test(item.preview)));
+let previewDownloads=0;
 for(const [def,paint] of [[7,44],[515,38],[5030,10037]]){
   const response=await fetch(`${url}/images/${def}/${paint}.png`);
   assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');
+  if(response.headers.get('x-preview-cache')==='miss')previewDownloads++;
   const bytes=new Uint8Array(await response.arrayBuffer());assert.ok(bytes.length>1000);
   const second=await fetch(`${url}/images/${def}/${paint}.png`);assert.equal(second.headers.get('x-preview-cache'),'hit');await second.arrayBuffer();
   assert.ok(fs.existsSync(path.join(base,`data/preview-images/${def}-${paint}.png`)));
@@ -59,4 +61,18 @@ assert.ok((await list()).some(g=>g.id===group.id));
 await post('/api/groups/delete',{groupId:group.id,confirmed:true});
 assert.deepEqual((await list()).map(g=>g.id),['default']);
 await post('/api/presets',picks[0],409);
-console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:2161,images:3,cache:true,tokenCheck:true,originCheck:true,groups:true,defaultProtected:true,rifleAndPistol:true,teams:2,skinRows:8,knifeAndGlove:true,singleUpdatePerSlot:true,gameCommandsSent:false}));
+assert.equal(bootstrap.maps.length,10);assert.equal(bootstrap.maps[0].id,'de_dust2');assert.ok(bootstrap.maps.every(map=>map.available));
+for(const map of bootstrap.maps){const icon=await fetch(url+map.icon);assert.equal(icon.status,200);assert.equal(icon.headers.get('content-type'),'image/png');assert.ok((await icon.arrayBuffer()).byteLength>1000)}
+assert.equal((await fetch(url+'/map-icons/de_ancient_night.png')).status,404);
+await post('/api/map',{mapId:'de_dust2;quit'},400);await post('/api/map',{mapId:'de_ancient_night'},400);
+const pendingMap=post('/api/map',{mapId:'de_mirage'});
+let changing=false;
+for(let i=0;i<20;i++){const state=await (await fetch(url+'/api/state')).json();if(state.operation.running){changing=true;break}await new Promise(resolve=>setTimeout(resolve,10))}
+assert.ok(changing,'Map transition should hold the operation lock');
+await post('/api/refresh',{},409);await post('/api/control/stop',{},409);
+assert.equal((await pendingMap).currentMap,'de_mirage');
+assert.equal((await (await fetch(url+'/api/state')).json()).currentMap,'de_mirage');
+assert.equal((await post('/api/map',{mapId:'de_dust2'})).currentMap,'de_dust2');
+const mapCommands=fs.readFileSync(path.join(base,'logs/fixture-maps.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line).command);
+assert.deepEqual(mapCommands,['changelevel de_mirage','exec inspect_server.cfg','changelevel de_dust2','exec inspect_server.cfg']);
+console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:2161,images:3,previewDownloads,cache:true,tokenCheck:true,originCheck:true,groups:true,defaultProtected:true,rifleAndPistol:true,teams:2,skinRows:8,knifeAndGlove:true,singleUpdatePerSlot:true,maps:10,mapIcons:10,mapSwitch:true,mapLock:true,mapAllowlist:true,gameCommandsSent:false}));

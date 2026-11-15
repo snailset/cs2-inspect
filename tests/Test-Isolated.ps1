@@ -1,6 +1,7 @@
 ﻿param(
     [Parameter(Mandatory=$true)][string]$NodePath,
     [string]$PackageRoot,
+    [string]$PreviewCacheRoot,
     [string]$TempRoot='D:\codex'
 )
 . "$PSScriptRoot\..\deploy\Common.ps1"
@@ -23,6 +24,17 @@ Write-Utf8 "$base\web\server.mjs" ($server.Replace('17830','17831').Replace('330
 Copy-Item -LiteralPath "$RepoRoot\tests\rcon-fixture.mjs" -Destination "$base\web\rcon.mjs" -Force
 Expand-VerifiedArchive (Join-Path $PackageRoot 'mariadb-11.4.13-winx64.zip') "$base\tools"
 Expand-VerifiedArchive (Join-Path $PackageRoot 'WeaponPaints.zip') "$base\server\game\csgo"
+$fixtureMaps="$base\server\game\csgo\maps"
+New-Item -ItemType Directory -Path $fixtureMaps -Force | Out-Null
+foreach($icon in Get-ChildItem -LiteralPath "$base\web\map-icons" -Filter '*.png'){
+    Write-Utf8 (Join-Path $fixtureMaps ($icon.BaseName+'.vpk')) 'fixture only; not a playable map'
+}
+if($PreviewCacheRoot){
+    New-Item -ItemType Directory -Path "$base\data\preview-images" -Force | Out-Null
+    foreach($image in @('7-44.png','515-38.png','5030-10037.png')){
+        Copy-Item -LiteralPath (Join-Path $PreviewCacheRoot $image) -Destination "$base\data\preview-images\$image"
+    }
+}
 $env:TEMP="$base\temp";$env:TMP=$env:TEMP
 $npm=Join-Path (Split-Path -Parent $NodePath) 'node_modules\npm\bin\npm-cli.js'
 Push-Location "$base\web"
@@ -39,10 +51,11 @@ try{
     $ready=$false
     for($i=0;$i -lt 30;$i++){
         if($webProcess.HasExited){throw 'Fixture web process exited. See logs/web-error.log.'}
-        try{$response=Invoke-WebRequest 'http://127.0.0.1:17831/api/bootstrap' -UseBasicParsing -TimeoutSec 2;if($response.StatusCode -eq 200){$ready=$true;break}}catch{}
+        if($dbProcess.HasExited){throw 'Fixture database process exited. See logs/mariadb-error.log.'}
+        try{$response=Invoke-RestMethod 'http://127.0.0.1:17831/api/state' -TimeoutSec 3;if($response.database){$ready=$true;break}}catch{}
         Start-Sleep -Milliseconds 300
     }
-    if(!$ready){throw 'Fixture web server did not start.'}
+    if(!$ready){throw 'Fixture web server or database did not become ready.'}
     Copy-Item -LiteralPath "$RepoRoot\tests\isolated-checks.mjs" -Destination "$base\web\isolated-checks.mjs"
     & $NodePath "$base\web\isolated-checks.mjs"
     if($LASTEXITCODE -ne 0){throw 'Fixture integration checks failed.'}

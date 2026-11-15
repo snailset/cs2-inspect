@@ -1,0 +1,67 @@
+{
+  "source": "https://github.com/MurkyYT/cs2-map-icons",
+  "commit": "6dcfb3a770afc08a16c4e843c51b873cac7fc4d5",
+  "rights": "Map icons are property of Valve Corporation; community repository provides public extracted assets.",
+  "files": [
+    {
+      "file": "de_ancient.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_ancient.png",
+      "sha256": "cd1196d8aa6ea0974a8c97c0c25ceda0d45278df7d0cc49721f5ee02597784cf",
+      "bytes": 192597
+    },
+    {
+      "file": "de_anubis.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_anubis.png",
+      "sha256": "e126ad5c0d7bc97e95b5247da45e06cbd30c87efe6a080c92271da48cd73d447",
+      "bytes": 66939
+    },
+    {
+      "file": "de_cache.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_cache.png",
+      "sha256": "06063829e0fa32cbfd6753a7247e6be3e74538145e44a5d3a7dc626ffea0a31c",
+      "bytes": 152844
+    },
+    {
+      "file": "de_dust2.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_dust2.png",
+      "sha256": "7616b610553374e4fce77d774e1de21d382ea93a2a2c304a13167dc3dbe2fc73",
+      "bytes": 206338
+    },
+    {
+      "file": "de_inferno.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_inferno.png",
+      "sha256": "d14644ad42bb121b486834a1e2f36601b4cf5e2706592e7b0f0066a318a75737",
+      "bytes": 115344
+    },
+    {
+      "file": "de_mirage.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_mirage.png",
+      "sha256": "4016d82b8b263bd2951d8356cd1df430d4a6b51a755adf152015543f1d7746be",
+      "bytes": 103568
+    },
+    {
+      "file": "de_nuke.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_nuke.png",
+      "sha256": "2af087c075fe874d3f6c8f553a7473177af205043815fbefd33c16e70e04829f",
+      "bytes": 152740
+    },
+    {
+      "file": "de_overpass.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_overpass.png",
+      "sha256": "73f27a0a3c6e28be46997e8f8e79d3eab687f763dfbd41762cbdad554cfa2280",
+      "bytes": 190712
+    },
+    {
+      "file": "de_train.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_train.png",
+      "sha256": "a3275ec86bb70f810baaa0a88bc183891cacaf0e76ea7365045dd586ec86b065",
+      "bytes": 109455
+    },
+    {
+      "file": "de_vertigo.png",
+      "url": "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/6dcfb3a770afc08a16c4e843c51b873cac7fc4d5/images/de_vertigo.png",
+      "sha256": "0c56a22a2e32f6dc658fee5d2dbd812a54c5ba221b9dffb96623f77b3bbfb15e",
+      "bytes": 100618
+    }
+  ]
+}

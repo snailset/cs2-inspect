@@ -7,6 +7,7 @@ import net from 'node:net';
 import {spawn} from 'node:child_process';
 import {rcon as sendRcon} from './rcon.mjs';
 import {createPreviewCache} from './preview-cache.mjs';
+import {MAPS,DEFAULT_MAP,requireMap,currentMap,createMapSwitcher} from './maps.mjs';
 import {createGroupStore,planGroup,applyGroupPlan} from './outfit-groups.mjs';
 let rconQueue=Promise.resolve();
 function rcon(...args){
@@ -17,6 +18,9 @@ import {base,settings,readJSON} from './paths.mjs';
 const web=path.join(base,'web');
 const secrets=readJSON(path.join(base,'data/secrets.json'));
 const profile=readJSON(path.join(base,'data/profile.json'));
+const mapsPath=path.join(base,'server/game/csgo/maps');
+const switchMap=createMapSwitcher({mapsPath,send:command=>rcon(command,secrets.rconPassword)});
+const listMaps=()=>MAPS.map(map=>({...map,available:fs.existsSync(path.join(mapsPath,map.id+'.vpk'))}));
 const pool=mysql.createPool({...secrets.database,connectionLimit:3,connectTimeout:1500});
 const data=path.join(base,'server/game/csgo/addons/counterstrikesharp/plugins/WeaponPaints/data');
 const rawSkins=readJSON(path.join(data,'skins_zh-CN.json'));
@@ -35,11 +39,12 @@ const apiToken=secrets.webToken||crypto.randomBytes(24).toString('hex');
 let operation={running:false,action:'',message:'',error:false};
 const powershell=path.join(process.env.SystemRoot||'C:/Windows','System32/WindowsPowerShell/v1.0/powershell.exe');
 const listening=port=>new Promise(resolve=>{const s=net.createConnection({host:'127.0.0.1',port});let done=false;const finish=value=>{if(done)return;done=true;s.destroy();resolve(value)};s.setTimeout(250,()=>finish(false));s.on('error',()=>finish(false));s.on('connect',()=>finish(true))});
-function control(action,launchClient=true){
+function control(action,launchClient=true,mapId=DEFAULT_MAP){
   if(operation.running||skinRequestRunning){const e=new Error('正在应用饰品或启停服务，请稍候');e.status=409;throw e}
+  if(action==='start')requireMap(mapId,mapsPath);
   operation={running:true,action,message:action==='start'?'正在启动本地检视…':'正在停止游戏服务…',error:false};
   const file=action==='start'?'Start-From-Panel.ps1':'Stop-Services.ps1';
-  const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts',file),...(action==='stop'?['-KeepPanel']:launchClient?[]:['-ServicesOnly'])];
+  const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts',file),...(action==='stop'?['-KeepPanel']:['-Map',mapId,...(launchClient?[]:['-ServicesOnly'])])];
   const child=spawn(powershell,args,{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,TEMP:settings.tempRoot,TMP:settings.tempRoot}});
   let stdout='',stderr='',finished=false;
   child.stdout.on('data',chunk=>{stdout=(stdout+chunk.toString('utf8')).slice(-65536)});child.stderr.on('data',chunk=>{stderr=(stderr+chunk.toString('utf8')).slice(-65536)});
@@ -51,8 +56,15 @@ function control(action,launchClient=true){
 const json=(res,status,body)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(body))};
 let skinRequestRunning=false;
 async function skinAction(action){
-  if(skinRequestRunning){const e=new Error('上一件饰品仍在应用，请稍候');e.status=409;throw e}
+  if(operation.running||skinRequestRunning){const e=new Error('操作进行中，请稍候');e.status=409;throw e}
   skinRequestRunning=true;try{return await action()}finally{skinRequestRunning=false}
+}
+async function changeMap(mapId){
+  if(operation.running||skinRequestRunning){const error=new Error('操作进行中，请稍候');error.status=409;throw error}
+  requireMap(mapId,mapsPath);
+  operation={running:true,action:'map',message:'正在切换地图…',error:false};
+  try{const result=await switchMap(mapId);operation={running:false,action:'map',message:'',error:false};return result}
+  catch(error){operation={running:false,action:'map',message:error.message,error:true};throw error}
 }
 async function refresh(item){
   const status=await rcon('status',secrets.rconPassword);if(!/[1-9]\d* humans/.test(status))return null;
@@ -121,7 +133,7 @@ async function getState(){
   const dbUp=await listening(3307);
   if(dbUp)try{await pool.query('SELECT 1');database=true;[rows]=await pool.execute('SELECT weapon_defindex AS def,weapon_paint_id AS paint,weapon_seed AS seed,weapon_wear AS wear,weapon_nametag AS nametag,weapon_stattrak AS stattrak,weapon_stattrak_count AS stattrakCount,weapon_sticker_0,weapon_sticker_1,weapon_sticker_2,weapon_sticker_3,weapon_sticker_4 FROM wp_player_skins WHERE steamid=? AND weapon_team=2',[profile.steamId]);rows=rows.map(row=>({...row,stattrak:!!row.stattrak,stickers:Array.from({length:5},(_,i)=>{const values=String(row[`weapon_sticker_${i}`]||'').split(';');return {id:Number(values[0]||0),wear:Number(values[4]||0)}})}))}catch{}
   try{status=await rcon('status',secrets.rconPassword);server=true}catch{}
-  return {database,server,connected:status.includes(profile.steamId)||/[1-9]\d* humans/.test(status),skins:catalog.length,saved:rows,operation,connection:'connect 127.0.0.1:27015'};
+  return {database,server,currentMap:currentMap(status),connected:status.includes(profile.steamId)||/[1-9]\d* humans/.test(status),skins:catalog.length,saved:rows,operation,connection:'connect 127.0.0.1:27015'};
 }
 const server=http.createServer(async(req,res)=>{
   try{
@@ -129,7 +141,9 @@ const server=http.createServer(async(req,res)=>{
     const url=new URL(req.url,'http://127.0.0.1:17830');
     if(req.method==='GET'){
       if(url.pathname==='/api/session')return json(res,200,{token:apiToken});
-      if(url.pathname==='/api/bootstrap')return json(res,200,{token:apiToken,catalog:browserCatalog,stickers});
+      if(url.pathname==='/api/bootstrap')return json(res,200,{token:apiToken,catalog:browserCatalog,stickers,maps:listMaps()});
+      const mapIcon=MAPS.find(map=>url.pathname===map.icon);
+      if(mapIcon){const file=path.join(web,'map-icons',mapIcon.id+'.png');if(!fs.existsSync(file))return json(res,404,{error:'地图图标不存在'});res.writeHead(200,{'Content-Type':'image/png','Cache-Control':'public, max-age=86400','X-Content-Type-Options':'nosniff'});return fs.createReadStream(file).pipe(res)}
       const previewMatch=/^\/images\/(\d{1,5})\/(\d{1,6})\.png$/.exec(url.pathname);
       if(previewMatch){
         try{
@@ -143,7 +157,7 @@ const server=http.createServer(async(req,res)=>{
       if(url.pathname==='/api/groups')return json(res,200,{groups:groups.list()});
       if(url.pathname==='/api/presets')return json(res,200,groups.list().flatMap(g=>g.items));
       if(url.pathname==='/help'){res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});return fs.createReadStream(path.join(base,'使用说明.md')).pipe(res)}
-      const files={'/':'index.html','/app.js':'app.js','/api-client.js':'api-client.js','/style.css':'style.css'};
+      const files={'/':'index.html','/app.js':'app.js','/api-client.js':'api-client.js','/map-picker.js':'map-picker.js','/style.css':'style.css'};
       if(files[url.pathname]){const f=files[url.pathname];res.writeHead(200,{'Content-Type':f.endsWith('.html')?'text/html; charset=utf-8':f.endsWith('.js')?'text/javascript; charset=utf-8':'text/css; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"});return fs.createReadStream(path.join(web,f)).pipe(res)}
     }
     if(req.method==='POST'){
@@ -151,8 +165,9 @@ const server=http.createServer(async(req,res)=>{
       if(req.headers['x-inspect-token']!==apiToken)return json(res,403,{code:'SESSION_EXPIRED',error:'页面验证已更新，请重试'});
       let body='';for await(const chunk of req){body+=chunk;if(body.length>32768)return json(res,413,{error:'数据过大'})}
       const input=JSON.parse(body||'{}');
-      if(url.pathname==='/api/control/start')return json(res,202,control('start',input.launchClient!==false));
+      if(url.pathname==='/api/control/start')return json(res,202,control('start',input.launchClient!==false,input.mapId??DEFAULT_MAP));
       if(url.pathname==='/api/control/stop')return json(res,202,control('stop'));
+      if(url.pathname==='/api/map')return json(res,200,await changeMap(input.mapId));
       if(url.pathname==='/api/groups/create')return json(res,200,{ok:true,group:groups.create(input.name)});
       if(url.pathname==='/api/groups/delete'){groups.remove(input.groupId,input.confirmed);return json(res,200,{ok:true})}
       if(url.pathname==='/api/groups/item/save'){

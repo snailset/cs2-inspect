@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import {MAPS,DEFAULT_MAP,getMap,requireMap,currentMap,createMapSwitcher} from '../runtime/web/maps.mjs';
+fs.mkdirSync('D:/codex',{recursive:true});
+const root=fs.mkdtempSync('D:/codex/map-tests-');
+assert.equal(MAPS.length,10);assert.equal(DEFAULT_MAP,'de_dust2');assert.equal(MAPS[0].name,'炙热沙城 II');
+assert.throws(()=>getMap('de_dust2;quit'));assert.throws(()=>getMap('../de_dust2'));assert.throws(()=>getMap('de_ancient_night'));
+assert.throws(()=>requireMap('de_mirage',root),/缺少地图/);
+for(const map of MAPS)fs.writeFileSync(path.join(root,map.id+'.vpk'),'fixture');
+assert.equal(currentMap('mapname : de_dust2'),'de_dust2');assert.equal(currentMap('map     : de_mirage at: 0 x, 0 y'),'de_mirage');assert.equal(currentMap('offline'),null);
+assert.equal(currentMap('loaded spawngroup(  1)  : SV:  [1: de_dust2 | main lump | mapload]'),'de_dust2');
+let current=DEFAULT_MAP;const commands=[];
+const send=async command=>{commands.push(command);if(command==='status')return `mapname : ${current}`;if(command.startsWith('changelevel ')){current=command.split(' ')[1];throw Object.assign(Error('transition closed RCON'),{code:'ECONNRESET'})}return ''};
+const change=createMapSwitcher({mapsPath:root,send,intervalMs:1,timeoutMs:100});
+assert.equal((await change('de_mirage')).currentMap,'de_mirage');
+assert.equal(commands.filter(c=>c==='changelevel de_mirage').length,1);assert.equal(commands.at(-1),'exec inspect_server.cfg');
+const before=commands.length;await change('de_mirage');assert.deepEqual(commands.slice(before),['status']);
+await assert.rejects(change('bad'),/请选择/);
+const neverLoads=createMapSwitcher({mapsPath:root,send:async()=>`mapname : de_dust2`,intervalMs:1,timeoutMs:5});
+await assert.rejects(neverLoads('de_nuke'),/超时/);
+const assets=fileURLToPath(new URL('../runtime/web/map-icons/',import.meta.url));
+const manifest=JSON.parse(fs.readFileSync(path.join(assets,'sources.json'),'utf8'));
+assert.equal(manifest.files.length,10);
+for(const file of manifest.files){const bytes=fs.readFileSync(path.join(assets,file.file));assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),file.sha256);assert.ok(bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))}
+console.log(JSON.stringify({maps:10,defaultDust2:true,allowlist:true,missingFile:true,statusParser:true,transitionDisconnect:true,noDuplicateCommand:true,reapplyConfig:true,timeout:true,iconHashes:true}));

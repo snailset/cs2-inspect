@@ -26,4 +26,6 @@ $actual=[IO.Path]::GetFullPath([IO.Path]::Combine('D:\Portable Inspect\server\ga
 if($actual -ne $expected){throw 'Bridge relative profile path mismatch.'}
 & $NodePath "$repo\tests\outfit-groups.mjs"
 if($LASTEXITCODE -ne 0){throw 'Outfit group checks failed.'}
+& $NodePath "$repo\tests\maps.mjs"
+if($LASTEXITCODE -ne 0){throw 'Map checks failed.'}
 Write-Host 'PowerShell/JavaScript syntax, bridge hashes and portable-path guards passed.'

@@ -1,4 +1,7 @@
 import {createApi} from './api-client.js';
+import {createMapPicker} from './map-picker.js';
+let mapPicker,mapRequestBusy=false;
+const syncMapControls=()=>mapPicker?.sync({busy:busy||skinRequestBusy||mapRequestBusy,server:serviceState.server,currentMap:serviceState.currentMap});
 const $=id=>document.getElementById(id),api=createApi();
 let catalog=[],stickers=[],kind='weapon',selected,presets=[],saved=[],busy=false,healthPending=false,skinRequestBusy=false,lastListKey='',previewVersion=0,groups=[],activeGroup='default',selectedPresetId='',groupMutationBusy=false,serviceState={},pendingSave=null,pendingDelete='';
 const notice=(text,type='')=>{$('notice').textContent=text;$('notice').className=type};
@@ -52,8 +55,9 @@ function renderItems(){
 async function health(){
   if(healthPending)return;healthPending=true;
   try{
-    const s=await api('/api/state');saved=s.saved;busy=s.operation.running;serviceState=s;
+    const s=await api('/api/state');saved=s.saved;busy=s.operation.running||mapRequestBusy;serviceState=s;
     $('health').textContent=s.connected?'● 已连接本机检视服':s.server?'● 检视服务已启动':'○ 检视服务未启动';$('health').className='status'+(s.server?' ok':'');
+    const mapName=mapNames.get(s.currentMap);if(mapName)$('health').textContent+=' · '+mapName;
     $('servicehint').textContent='';
     $('start').disabled=busy;$('stop').disabled=busy||(!s.server&&!s.database);$('apply').disabled=busy||skinRequestBusy||!s.database;$('refresh').disabled=busy||skinRequestBusy||!s.server;
     syncGroupButtons();$('controlnotice').textContent=s.operation.running||s.operation.error?s.operation.message||'':'';$('controlnotice').className=s.operation.error?'error':'';return s;
@@ -66,10 +70,18 @@ $('tabs').onclick=async e=>{
 };
 $('category').onchange=()=>{$('search').value='';pick(catalog.find(x=>x.kind===kind&&x.def===Number($('category').value)));$('items').scrollTop=0};$('search').oninput=renderItems;
 $('wearslider').oninput=()=>{$('wear').value=$('wearslider').value;keepDraft()};$('wear').oninput=()=>$('wearslider').value=$('wear').value;$('form').oninput=keepDraft;
-$('form').onsubmit=async e=>{e.preventDefault();if(skinRequestBusy||busy)return;skinRequestBusy=true;$('apply').disabled=true;$('refresh').disabled=true;notice('正在应用饰品…');try{const r=await api('/api/apply',values());notice(r.refreshed&&['selected','preserved'].includes(r.applied?.focus)?'已应用':r.notice,r.refreshed?'success':'');keepDraft()}catch(e){notice(e.message,'error')}finally{skinRequestBusy=false;await health()}};
+$('form').onsubmit=async e=>{e.preventDefault();if(skinRequestBusy||busy)return;skinRequestBusy=true;syncMapControls();$('apply').disabled=true;$('refresh').disabled=true;notice('正在应用饰品…');try{const r=await api('/api/apply',values());notice(r.refreshed&&['selected','preserved'].includes(r.applied?.focus)?'已应用':r.notice,r.refreshed?'success':'');keepDraft()}catch(e){notice(e.message,'error')}finally{skinRequestBusy=false;await health()}};
 $('save').onclick=async()=>{if(groupMutationBusy||!$('form').reportValidity())return;try{pendingSave={...values(),title: selected.name+' · 模板 '+$('seed').value+' · '+$('wear').value};await loadGroups();$('savingitem').textContent=pendingSave.title;$('savegrouperror').textContent='';$('savegroupdialog').showModal()}catch(e){notice(e.message,'error')}};
-$('refresh').onclick=async()=>{if(skinRequestBusy||busy)return;skinRequestBusy=true;$('apply').disabled=true;$('refresh').disabled=true;try{const r=await api('/api/refresh',{});notice(r.refreshed?'已刷新':r.notice,r.refreshed?'success':'')}catch(e){notice(e.message,'error')}finally{skinRequestBusy=false;await health()}};
-async function control(action){if(busy)return;busy=true;$('start').disabled=true;$('stop').disabled=true;$('controlnotice').textContent=action==='start'?'正在启动，请稍候…':'正在停止检视服务…';try{await api(`/api/control/${action}`,{});await health()}catch(e){busy=false;$('controlnotice').textContent=e.message;$('controlnotice').className='error';await health()}}
+$('refresh').onclick=async()=>{if(skinRequestBusy||busy)return;skinRequestBusy=true;syncMapControls();$('apply').disabled=true;$('refresh').disabled=true;try{const r=await api('/api/refresh',{});notice(r.refreshed?'已刷新':r.notice,r.refreshed?'success':'')}catch(e){notice(e.message,'error')}finally{skinRequestBusy=false;await health()}};
+async function control(action){if(busy)return;busy=true;$('start').disabled=true;$('stop').disabled=true;$('controlnotice').textContent=action==='start'?'正在启动，请稍候…':'正在停止检视服务…';try{await api(`/api/control/${action}`,action==='start'?{mapId:mapPicker?.value||'de_dust2'}:{});await health()}catch(e){busy=false;$('controlnotice').textContent=e.message;$('controlnotice').className='error';await health()}}
+$('changemap').onclick=async()=>{
+  if(busy||skinRequestBusy||mapRequestBusy)return;
+  mapRequestBusy=true;busy=true;syncGroupButtons();$('start').disabled=true;$('stop').disabled=true;$('apply').disabled=true;$('refresh').disabled=true;
+  $('controlnotice').className='';$('controlnotice').textContent='正在切换地图…';
+  try{await api('/api/map',{mapId:mapPicker.value})}catch(e){$('controlnotice').textContent=e.message;$('controlnotice').className='error'}
+  finally{mapRequestBusy=false;await health()}
+};
+const mapNames=new Map();
 $('start').onclick=()=>control('start');$('stop').onclick=()=>control('stop');
 $('copy').onclick=async()=>{try{await navigator.clipboard.writeText('connect 127.0.0.1:27015');$('copy').textContent='已复制';setTimeout(()=>$('copy').textContent='复制连接指令',1800)}catch{notice('请手动复制页面上的连接指令')}};
 $('previewretry').onclick=()=>{if(selected)showPreview(selected,true)};
@@ -78,6 +90,7 @@ $('deletegroup').innerHTML=trashIcon;
 function currentGroup(){return groups.find(g=>g.id===activeGroup)}
 function groupNotice(message,error=false){$('groupnotice').textContent=message;$('groupnotice').className=error?'error':'success'}
 function syncGroupButtons(){
+  syncMapControls();
   const g=currentGroup(),locked=busy||skinRequestBusy;
   $('applygroup').disabled=locked||groupMutationBusy||!serviceState.database||!g?.items.length;
   $('deletegroup').disabled=groupMutationBusy||!g||g.locked;
@@ -117,6 +130,7 @@ for(const button of document.querySelectorAll('[data-close]'))button.onclick=()=
 
 async function boot(){try{
   const b=await api('/api/bootstrap');catalog=b.catalog;stickers=b.stickers;
+  for(const map of b.maps)mapNames.set(map.id,map.name);mapPicker=createMapPicker(b.maps);
   const frag=document.createDocumentFragment();for(const s of stickers){const o=document.createElement('option');o.value=`${s.id} · ${s.name}`;frag.append(o)}$('stickernames').append(frag);
   for(let i=0;i<5;i++){const row=document.createElement('div');row.className='stickerrow';const input=document.createElement('input');input.id=`sticker${i}`;input.setAttribute('list','stickernames');input.placeholder=`贴纸 ${i+1}：名称或编号`;input.setAttribute('aria-label',`贴纸 ${i+1}`);const wear=document.createElement('input');wear.id=`scrape${i}`;wear.type='number';wear.min='0';wear.max='1';wear.step='any';wear.value='0';wear.title='刮痕磨损 0–1';row.append(input,wear);$('stickerfields').append(row)}
   await loadGroups();await health();let draft;try{draft=JSON.parse(localStorage.getItem('cs2inspect.editor.v2'))}catch{}

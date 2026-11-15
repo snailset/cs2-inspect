@@ -1,6 +1,7 @@
-﻿param([switch]$OpenPage)
+﻿param([switch]$OpenPage,[ValidateSet('de_dust2','de_mirage','de_inferno','de_nuke','de_overpass','de_ancient','de_anubis','de_train','de_vertigo','de_cache')][string]$Map='de_dust2')
 $ErrorActionPreference='Stop'
 . "$PSScriptRoot\Common.ps1"
+if(!(Test-Path -LiteralPath "$base\server\game\csgo\maps\$Map.vpk")){throw 'Map file is missing.'}
 if(!(Test-Path "$base\data\isolation-enabled.json") -or @(Get-NetFirewallProfile -Name Domain,Private,Public|Where-Object {!$_.Enabled}).Count){throw 'Local isolation is not enabled. Run Enable-Local-Isolation.cmd as administrator first.'}
 $policy=New-Object -ComObject HNetCfg.FwPolicy2
 foreach($family in @('IPv4','IPv6')){
@@ -17,7 +18,7 @@ $db="$base\tools\mariadb-11.4.13-winx64\bin\mariadbd.exe"
 if(!(Has-Process $db 'mariadb.ini')){Start-Process $db -ArgumentList "--defaults-file=`"$base\data\mariadb.ini`"" -WorkingDirectory "$base\tools\mariadb-11.4.13-winx64" -WindowStyle Hidden -RedirectStandardOutput "$base\logs\database-stdout.log" -RedirectStandardError "$base\logs\database-stderr.log"|Out-Null}
 Wait-LocalPort 3307 30
 $exe="$base\server\game\bin\win64\cs2.exe"
-if(!(Has-Process $exe '-dedicated')){Start-Process $exe -ArgumentList '-dedicated -insecure -console -condebug -conclearlog -usercon -ip 127.0.0.1 -port 27015 -maxplayers 2 +sv_lan 1 +game_type 0 +game_mode 0 +map de_dust2 +exec inspect_server.cfg' -WorkingDirectory "$base\server\game" -WindowStyle Hidden|Out-Null}
+if(!(Has-Process $exe '-dedicated')){Start-Process $exe -ArgumentList "-dedicated -insecure -console -condebug -conclearlog -usercon -ip 127.0.0.1 -port 27015 -maxplayers 2 +sv_lan 1 +game_type 0 +game_mode 0 +map $Map +exec inspect_server.cfg" -WorkingDirectory "$base\server\game" -WindowStyle Hidden|Out-Null}
 $node="$base\tools\node-v24.22.3-win-x64\node.exe"
 if(!(Has-Process $node "$base\web\server.mjs")){Start-Process $node -ArgumentList "`"$base\web\server.mjs`"" -WorkingDirectory "$base\web" -WindowStyle Hidden -RedirectStandardOutput "$base\logs\web.log" -RedirectStandardError "$base\logs\web-error.log"|Out-Null}
 Wait-LocalPort 17830 15
