@@ -19,6 +19,8 @@ $setup=Get-Content -Encoding UTF8 -LiteralPath "$base\web\setup-database.mjs" -R
 Write-Utf8 "$base\web\setup-database.mjs" ($setup.Replace('3307','13307'))
 $server=Get-Content -Encoding UTF8 -LiteralPath "$base\web\server.mjs" -Raw
 Write-Utf8 "$base\web\server.mjs" ($server.Replace('17830','17831').Replace('3307','13307'))
+# Never connect to the real game, even when the test applies a complete outfit.
+Copy-Item -LiteralPath "$RepoRoot\tests\rcon-fixture.mjs" -Destination "$base\web\rcon.mjs" -Force
 Expand-VerifiedArchive (Join-Path $PackageRoot 'mariadb-11.4.13-winx64.zip') "$base\tools"
 Expand-VerifiedArchive (Join-Path $PackageRoot 'WeaponPaints.zip') "$base\server\game\csgo"
 $env:TEMP="$base\temp";$env:TMP=$env:TEMP
@@ -27,6 +29,9 @@ Push-Location "$base\web"
 try{& $NodePath $npm ci --omit=dev --ignore-scripts --no-audit --no-fund --cache "$testRoot\npm-cache";if($LASTEXITCODE -ne 0){throw 'Fixture npm ci failed.'}}finally{Pop-Location}
 & $NodePath "$base\web\setup-database.mjs"
 if($LASTEXITCODE -ne 0){throw 'Fresh fixture database setup failed.'}
+$sourceGameInfo=Join-Path $testRoot 'source-gameinfo.gi'
+Write-Utf8 $sourceGameInfo "GameInfo { FileSystem { SearchPaths { Game_LowViolence csgo_lv } } }"
+& "$PSScriptRoot\Test-ServerConfig.ps1" -FixtureRoot $base -SourceGameInfo $sourceGameInfo
 $dbProcess=$null;$webProcess=$null
 try{
     $dbProcess=Start-Process "$base\tools\mariadb-11.4.13-winx64\bin\mariadbd.exe" -ArgumentList "--defaults-file=`"$base\data\mariadb.ini`"" -WindowStyle Hidden -PassThru

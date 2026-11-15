@@ -26,4 +26,37 @@ const invalid=await fetch(`${url}/api/refresh`,{method:'POST',headers:{'X-Inspec
 assert.equal(invalid.status,403);assert.equal((await invalid.json()).code,'SESSION_EXPIRED');
 const foreign=await fetch(`${url}/api/refresh`,{method:'POST',headers:{Origin:'https://example.com','X-Inspect-Token':bootstrap.token}});
 assert.equal(foreign.status,403);assert.equal((await foreign.json()).code,'ORIGIN_REJECTED');
-console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:2161,images:3,cache:true,tokenCheck:true,originCheck:true,gameCommandsSent:false}));
+const post=async(route,body,status=200)=>{
+  const response=await fetch(url+route,{method:'POST',headers:{'Content-Type':'application/json','X-Inspect-Token':bootstrap.token},body:JSON.stringify(body)});
+  const result=await response.json();assert.equal(response.status,status,JSON.stringify(result));return result;
+};
+const list=async()=>(await (await fetch(url+'/api/groups')).json()).groups;
+const initial=await list();assert.equal(initial.length,1);assert.equal(initial[0].id,'default');assert.equal(initial[0].locked,true);assert.equal(initial[0].items.length,0);
+await post('/api/groups/delete',{groupId:'default',confirmed:true},400);
+const group=(await post('/api/groups/create',{name:'整组测试'})).group;
+await post('/api/groups/create',{name:'整组测试'},400);
+await post('/api/groups/apply',{groupId:group.id},400);
+const picks=[[7,44],[61,818],[515,38],[5030,10073]].map(([def,paint])=>({def,paint,seed:7,wear:0.03}));
+await post('/api/groups/item/save',picks[0],404);
+for(const item of picks)await post('/api/groups/item/save',{...item,groupId:group.id});
+const applied=await post('/api/groups/apply',{groupId:group.id});
+assert.equal(applied.refreshed,true);assert.equal(applied.savedCount,4);assert.equal(applied.equippedCount,4);
+const db=await mysql.createConnection({...secrets.database,connectTimeout:5000});
+try{
+  const [rows]=await db.query('SELECT weapon_team,weapon_defindex,weapon_paint_id FROM wp_player_skins ORDER BY weapon_team,weapon_defindex');
+  assert.equal(rows.length,8);
+  for(const team of [2,3])for(const item of picks)assert.ok(rows.some(r=>r.weapon_team===team&&r.weapon_defindex===item.def&&r.weapon_paint_id===item.paint));
+  const [knives]=await db.query('SELECT knife FROM wp_player_knife');assert.equal(knives.length,2);assert.ok(knives.every(r=>r.knife==='weapon_knife_butterfly'));
+  const [gloves]=await db.query('SELECT weapon_defindex FROM wp_player_gloves');assert.equal(gloves.length,2);assert.ok(gloves.every(r=>r.weapon_defindex===5030));
+}finally{await db.end()}
+const calls=fs.readFileSync(path.join(base,'logs/fixture-applies.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+assert.deepEqual(calls.map(c=>c.def),[7,61,515,5030]);assert.equal(new Set(calls.map(c=>c.id)).size,4);
+const saved=(await list()).find(g=>g.id===group.id);
+await post('/api/groups/item/delete',{groupId:group.id,itemId:saved.items[0].id});
+assert.equal((await list()).find(g=>g.id===group.id).items.length,3);
+await post('/api/groups/delete',{groupId:group.id},400);
+assert.ok((await list()).some(g=>g.id===group.id));
+await post('/api/groups/delete',{groupId:group.id,confirmed:true});
+assert.deepEqual((await list()).map(g=>g.id),['default']);
+await post('/api/presets',picks[0],409);
+console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:2161,images:3,cache:true,tokenCheck:true,originCheck:true,groups:true,defaultProtected:true,rifleAndPistol:true,teams:2,skinRows:8,knifeAndGlove:true,singleUpdatePerSlot:true,gameCommandsSent:false}));

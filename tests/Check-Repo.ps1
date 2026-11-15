@@ -24,4 +24,6 @@ if(Test-PathOverlap 'D:\Games\CS2' 'D:\Games\CS2-backup'){throw 'Path guard fals
 $expected='D:\Portable Inspect\data\profile.json'
 $actual=[IO.Path]::GetFullPath([IO.Path]::Combine('D:\Portable Inspect\server\game\csgo\addons\counterstrikesharp\plugins\LocalInspectBridge','../../../../../../../data/profile.json'))
 if($actual -ne $expected){throw 'Bridge relative profile path mismatch.'}
+& $NodePath "$repo\tests\outfit-groups.mjs"
+if($LASTEXITCODE -ne 0){throw 'Outfit group checks failed.'}
 Write-Host 'PowerShell/JavaScript syntax, bridge hashes and portable-path guards passed.'

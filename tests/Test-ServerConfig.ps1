@@ -16,7 +16,11 @@ $text=Get-Content -Encoding UTF8 -LiteralPath "$game\gameinfo.gi" -Raw
 if([regex]::Matches($text,'Game\s+csgo/addons/metamod').Count -ne 1){throw 'Metamod insertion was not idempotent.'}
 $cfg=Get-Content -Encoding UTF8 -LiteralPath "$game\cfg\inspect_server.cfg" -Raw
 if($cfg -notmatch '(?m)^sv_infinite_ammo 2\s*$' -or !$cfg.Contains($secrets.rconPassword)){throw 'Generated server configuration mismatch.'}
+foreach($setting in @('mp_warmup_online_enabled','mp_warmup_offline_enabled','mp_warmup_pausetimer','sv_warmup_to_freezetime_delay','mp_warmuptime','mp_freezetime')){
+    if($cfg -notmatch "(?m)^$setting 0\s*$"){throw "Warmup setting missing: $setting"}
+}
+if($cfg -notmatch '(?m)^mp_warmup_end\s*$'){throw 'Warmup end command missing.'}
 $wp=Get-Content -Encoding UTF8 -LiteralPath "$game\addons\counterstrikesharp\configs\plugins\WeaponPaints\WeaponPaints.json" -Raw|ConvertFrom-Json
 if($wp.DatabasePassword -ne $secrets.database.password){throw 'WeaponPaints database credentials mismatch.'}
 if((Get-FileHash -LiteralPath $SourceGameInfo).Hash -ne $originalHash){throw 'Original gameinfo.gi changed.'}
-Write-Host 'Independent gameinfo edit, idempotence, generated credentials and reload setting passed.'
+Write-Host 'Independent gameinfo edit, idempotence, generated credentials, reload and warmup settings passed.'

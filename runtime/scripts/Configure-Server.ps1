@@ -26,6 +26,10 @@ bot_kick
 mp_limitteams 0
 mp_autoteambalance 0
 mp_freezetime 0
+mp_warmup_online_enabled 0
+mp_warmup_offline_enabled 0
+mp_warmup_pausetimer 0
+sv_warmup_to_freezetime_delay 0
 mp_warmuptime 0
 mp_warmup_end
 mp_roundtime 60

@@ -3,6 +3,7 @@ deploy.local.psd1
 **/secrets.json
 **/profile.json
 **/presets.json
+**/outfit-groups.json
 **/settings.json
 **/node_modules/
 **/bin/

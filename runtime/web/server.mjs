@@ -7,6 +7,7 @@ import net from 'node:net';
 import {spawn} from 'node:child_process';
 import {rcon as sendRcon} from './rcon.mjs';
 import {createPreviewCache} from './preview-cache.mjs';
+import {createGroupStore,planGroup,applyGroupPlan} from './outfit-groups.mjs';
 let rconQueue=Promise.resolve();
 function rcon(...args){
   const request=rconQueue.then(async()=>{try{return await sendRcon(...args)}catch(e){if(e.code!=='ECONNREFUSED')throw e;await new Promise(r=>setTimeout(r,200));return sendRcon(...args)}});
@@ -14,7 +15,6 @@ function rcon(...args){
 }
 import {base,settings,readJSON} from './paths.mjs';
 const web=path.join(base,'web');
-
 const secrets=readJSON(path.join(base,'data/secrets.json'));
 const profile=readJSON(path.join(base,'data/profile.json'));
 const pool=mysql.createPool({...secrets.database,connectionLimit:3,connectTimeout:1500});
@@ -30,12 +30,13 @@ const stickers=readJSON(path.join(data,'stickers_zh-CN.json')).map(x=>({id:Numbe
 const byItem=new Map(catalog.map(x=>[`${x.def}:${x.paint}`,x]));
 const stickerIds=new Set([0,...stickers.map(x=>x.id)]);
 const presetPath=path.join(base,'data/presets.json');
+const groups=createGroupStore(path.join(base,'data/outfit-groups.json'),presetPath);
 const apiToken=secrets.webToken||crypto.randomBytes(24).toString('hex');
 let operation={running:false,action:'',message:'',error:false};
 const powershell=path.join(process.env.SystemRoot||'C:/Windows','System32/WindowsPowerShell/v1.0/powershell.exe');
 const listening=port=>new Promise(resolve=>{const s=net.createConnection({host:'127.0.0.1',port});let done=false;const finish=value=>{if(done)return;done=true;s.destroy();resolve(value)};s.setTimeout(250,()=>finish(false));s.on('error',()=>finish(false));s.on('connect',()=>finish(true))});
 function control(action,launchClient=true){
-  if(operation.running){const e=new Error('上一次启动或停止仍在进行，请稍候');e.status=409;throw e}
+  if(operation.running||skinRequestRunning){const e=new Error('正在应用饰品或启停服务，请稍候');e.status=409;throw e}
   operation={running:true,action,message:action==='start'?'正在启动本地检视…':'正在停止游戏服务…',error:false};
   const file=action==='start'?'Start-From-Panel.ps1':'Stop-Services.ps1';
   const args=['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(base,'scripts',file),...(action==='stop'?['-KeepPanel']:launchClient?[]:['-ServicesOnly'])];
@@ -89,11 +90,13 @@ function validate(input){
   });
   return {def:item.def,paint:item.paint,seed,wear,nametag:String(input.nametag||'').slice(0,32),stattrak:!!input.stattrak,stattrakCount:count,stickers:ss};
 }
-async function apply(input){
+async function persistItems(entries){
   if(operation.running){const e=new Error('服务正在启动或停止，请完成后再应用');e.status=409;throw e}
-  const v=validate(input),item=byItem.get(`${v.def}:${v.paint}`),c=await pool.getConnection();
+  const c=await pool.getConnection();
   try{
     await c.beginTransaction();
+    for(const v of entries){
+    const item=byItem.get(`${v.def}:${v.paint}`);
     for(const team of [2,3]){
       const columns=['steamid','weapon_team','weapon_defindex','weapon_paint_id','weapon_wear','weapon_seed','weapon_nametag','weapon_stattrak','weapon_stattrak_count',...Array.from({length:5},(_,i)=>`weapon_sticker_${i}`)];
       const values=[profile.steamId,team,v.def,v.paint,v.wear,v.seed,v.nametag,v.stattrak?1:0,v.stattrakCount,...v.stickers.map(s=>`${s.id};0;0;0;${s.wear};1;0`)];
@@ -101,8 +104,13 @@ async function apply(input){
       if(item.kind==='knife')await c.execute('INSERT INTO wp_player_knife (steamid,weapon_team,knife) VALUES (?,?,?) ON DUPLICATE KEY UPDATE knife=VALUES(knife)',[profile.steamId,team,item.entity]);
       if(item.kind==='glove')await c.execute('INSERT INTO wp_player_gloves (steamid,weapon_team,weapon_defindex) VALUES (?,?,?) ON DUPLICATE KEY UPDATE weapon_defindex=VALUES(weapon_defindex)',[profile.steamId,team,v.def]);
     }
+    }
     await c.commit();
   }catch(e){await c.rollback();throw e}finally{c.release()}
+}
+async function apply(input){
+  const v=validate(input),item=byItem.get(`${v.def}:${v.paint}`);
+  await persistItems([v]);
   let refreshed=false,notice='搭配已保存。进入本地地图后，点击“刷新游戏饰品”即可应用。';
   let applied=null;
   try{applied=await refresh(item);refreshed=!!applied;if(applied)notice=applied.focus==='selected'?`已应用并切换到${item.group}，可直接检视。`:applied.focus==='preserved'?'已应用，并保留当前持有视角。':'已应用；未能确认视角切换，请手动切到对应武器。'}catch(e){notice=`搭配已保存；${e.message}`}
@@ -132,7 +140,8 @@ const server=http.createServer(async(req,res)=>{
         }catch(e){return json(res,e.status||502,{error:'图片暂时无法加载，请稍后重试'})}
       }
       if(url.pathname==='/api/state')return json(res,200,await getState());
-      if(url.pathname==='/api/presets')return json(res,200,fs.existsSync(presetPath)?readJSON(presetPath):[]);
+      if(url.pathname==='/api/groups')return json(res,200,{groups:groups.list()});
+      if(url.pathname==='/api/presets')return json(res,200,groups.list().flatMap(g=>g.items));
       if(url.pathname==='/help'){res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});return fs.createReadStream(path.join(base,'使用说明.md')).pipe(res)}
       const files={'/':'index.html','/app.js':'app.js','/api-client.js':'api-client.js','/style.css':'style.css'};
       if(files[url.pathname]){const f=files[url.pathname];res.writeHead(200,{'Content-Type':f.endsWith('.html')?'text/html; charset=utf-8':f.endsWith('.js')?'text/javascript; charset=utf-8':'text/css; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"});return fs.createReadStream(path.join(web,f)).pipe(res)}
@@ -144,12 +153,21 @@ const server=http.createServer(async(req,res)=>{
       const input=JSON.parse(body||'{}');
       if(url.pathname==='/api/control/start')return json(res,202,control('start',input.launchClient!==false));
       if(url.pathname==='/api/control/stop')return json(res,202,control('stop'));
+      if(url.pathname==='/api/groups/create')return json(res,200,{ok:true,group:groups.create(input.name)});
+      if(url.pathname==='/api/groups/delete'){groups.remove(input.groupId,input.confirmed);return json(res,200,{ok:true})}
+      if(url.pathname==='/api/groups/item/save'){
+        const v=validate(input),item=groups.save(input.groupId,{...v,title:String(input.title||byItem.get(`${v.def}:${v.paint}`).name).slice(0,120)});
+        return json(res,200,{ok:true,item});
+      }
+      if(url.pathname==='/api/groups/item/delete'){groups.removeItem(input.groupId,input.itemId);return json(res,200,{ok:true})}
+      if(url.pathname==='/api/groups/apply')return json(res,200,await skinAction(async()=>{
+        const plan=planGroup(groups.get(input.groupId).items,validate,v=>byItem.get(`${v.def}:${v.paint}`));
+        return applyGroupPlan(plan,persistItems,refresh);
+      }));
       if(url.pathname==='/api/apply')return json(res,200,await skinAction(()=>apply(input)));
       if(url.pathname==='/api/refresh'){const applied=await skinAction(()=>refresh());return json(res,200,{ok:true,refreshed:!!applied,applied,notice:applied?'已刷新当前持有的装备。':'请先连接本地服务器并选择阵营，再刷新。'})}
       if(url.pathname==='/api/presets'){
-        const v=validate(input),list=fs.existsSync(presetPath)?readJSON(presetPath):[];
-        list.unshift({...v,title:String(input.title||byItem.get(`${v.def}:${v.paint}`).name).slice(0,80),date:new Date().toISOString()});
-        fs.writeFileSync(presetPath,JSON.stringify(list.slice(0,100),null,2));return json(res,200,{ok:true});
+        return json(res,409,{error:'页面已更新，请刷新后选择组合再保存搭配。'});
       }
     }
     json(res,404,{error:'找不到页面'});
