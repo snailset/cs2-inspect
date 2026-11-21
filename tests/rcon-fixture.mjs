@@ -13,7 +13,7 @@ export async function rcon(command){
   if(args[0]==='inspect_apply'){
     const [,id,steamId,kind,def]=args;
     if(steamId!=='76561198000000000'||!/^[a-f0-9]{24}$/.test(id))throw Error('Invalid fixture player or job');
-    jobs.set(id,{status:'done',focus:kind==='glove'?'preserved':'selected'});
+    jobs.set(id,{status:'done',focus:['glove','agent'].includes(kind)?'preserved':'selected'});
     fs.appendFileSync(path.join(base,'logs/fixture-applies.jsonl'),JSON.stringify({id,kind,def:Number(def)})+'\n');
     return `INSPECT_ACCEPTED ${id}`;
   }

@@ -31,7 +31,7 @@ foreach($icon in Get-ChildItem -LiteralPath "$base\web\map-icons" -Filter '*.png
 }
 if($PreviewCacheRoot){
     New-Item -ItemType Directory -Path "$base\data\preview-images" -Force | Out-Null
-    foreach($image in @('7-44.png','515-38.png','5030-10037.png')){
+    foreach($image in @('7-44.png','515-38.png','5030-10037.png','4613-0.png')){
         Copy-Item -LiteralPath (Join-Path $PreviewCacheRoot $image) -Destination "$base\data\preview-images\$image"
     }
 }

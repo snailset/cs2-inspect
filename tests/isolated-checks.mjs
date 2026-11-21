@@ -12,10 +12,14 @@ try{
 }finally{await connection.end()}
 const url='http://127.0.0.1:17831';
 const bootstrap=await (await fetch(`${url}/api/bootstrap`)).json();
-assert.equal(bootstrap.catalog.length,2161);
+const agents=bootstrap.catalog.filter(item=>item.kind==='agent');
+assert.equal(bootstrap.catalog.length-agents.length,2161);
+assert.deepEqual([2,3].map(team=>agents.filter(item=>item.team===team).length),[34,29]);
+const agent=agents.find(item=>item.def===4613);
+assert.ok(agent && agent.paint===0);
 assert.ok(bootstrap.catalog.every(item=>/^\/images\/\d+\/\d+\.png$/.test(item.preview)));
 let previewDownloads=0;
-for(const [def,paint] of [[7,44],[515,38],[5030,10037]]){
+for(const [def,paint] of [[7,44],[515,38],[5030,10037],[agent.def,agent.paint]]){
   const response=await fetch(`${url}/images/${def}/${paint}.png`);
   assert.equal(response.status,200);assert.equal(response.headers.get('content-type'),'image/png');
   if(response.headers.get('x-preview-cache')==='miss')previewDownloads++;
@@ -41,8 +45,10 @@ await post('/api/groups/apply',{groupId:group.id},400);
 const picks=[[7,44],[61,818],[515,38],[5030,10073]].map(([def,paint])=>({def,paint,seed:7,wear:0.03}));
 await post('/api/groups/item/save',picks[0],404);
 for(const item of picks)await post('/api/groups/item/save',{...item,groupId:group.id});
+const agentPreset=(await post('/api/groups/item/save',{def:agent.def,paint:agent.paint,groupId:group.id})).item;
+assert.ok(!('seed' in agentPreset) && !('wear' in agentPreset));
 const applied=await post('/api/groups/apply',{groupId:group.id});
-assert.equal(applied.refreshed,true);assert.equal(applied.savedCount,4);assert.equal(applied.equippedCount,4);
+assert.equal(applied.refreshed,true);assert.equal(applied.savedCount,5);assert.equal(applied.equippedCount,5);
 const db=await mysql.createConnection({...secrets.database,connectTimeout:5000});
 try{
   const [rows]=await db.query('SELECT weapon_team,weapon_defindex,weapon_paint_id FROM wp_player_skins ORDER BY weapon_team,weapon_defindex');
@@ -50,12 +56,15 @@ try{
   for(const team of [2,3])for(const item of picks)assert.ok(rows.some(r=>r.weapon_team===team&&r.weapon_defindex===item.def&&r.weapon_paint_id===item.paint));
   const [knives]=await db.query('SELECT knife FROM wp_player_knife');assert.equal(knives.length,2);assert.ok(knives.every(r=>r.knife==='weapon_knife_butterfly'));
   const [gloves]=await db.query('SELECT weapon_defindex FROM wp_player_gloves');assert.equal(gloves.length,2);assert.ok(gloves.every(r=>r.weapon_defindex===5030));
+  const [models]=await db.execute('SELECT agent_ct,agent_t FROM wp_player_agents WHERE steamid=?',['76561198000000000']);
+  assert.equal(models.length,1);assert.equal(models[0].agent_ct,agent.entity);assert.equal(models[0].agent_t,agent.entity);
 }finally{await db.end()}
 const calls=fs.readFileSync(path.join(base,'logs/fixture-applies.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-assert.deepEqual(calls.map(c=>c.def),[7,61,515,5030]);assert.equal(new Set(calls.map(c=>c.id)).size,4);
+assert.deepEqual(calls.map(c=>c.def),[7,61,515,agent.def,5030]);assert.equal(new Set(calls.map(c=>c.id)).size,5);
+assert.equal(calls.find(c=>c.def===agent.def).kind,'agent');
 const saved=(await list()).find(g=>g.id===group.id);
 await post('/api/groups/item/delete',{groupId:group.id,itemId:saved.items[0].id});
-assert.equal((await list()).find(g=>g.id===group.id).items.length,3);
+assert.equal((await list()).find(g=>g.id===group.id).items.length,4);
 await post('/api/groups/delete',{groupId:group.id},400);
 assert.ok((await list()).some(g=>g.id===group.id));
 await post('/api/groups/delete',{groupId:group.id,confirmed:true});
@@ -75,4 +84,4 @@ assert.equal((await (await fetch(url+'/api/state')).json()).currentMap,'de_mirag
 assert.equal((await post('/api/map',{mapId:'de_dust2'})).currentMap,'de_dust2');
 const mapCommands=fs.readFileSync(path.join(base,'logs/fixture-maps.jsonl'),'utf8').trim().split('\n').map(line=>JSON.parse(line).command);
 assert.deepEqual(mapCommands,['changelevel de_mirage','exec inspect_server.cfg','changelevel de_dust2','exec inspect_server.cfg']);
-console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:2161,images:3,previewDownloads,cache:true,tokenCheck:true,originCheck:true,groups:true,defaultProtected:true,rifleAndPistol:true,teams:2,skinRows:8,knifeAndGlove:true,singleUpdatePerSlot:true,maps:10,mapIcons:10,mapSwitch:true,mapLock:true,mapAllowlist:true,gameCommandsSent:false}));
+console.log(JSON.stringify({freshDatabase:true,tables:6,catalog:bootstrap.catalog.length,agents:agents.length,images:4,previewDownloads,cache:true,tokenCheck:true,originCheck:true,groups:true,defaultProtected:true,rifleAndPistol:true,teams:2,skinRows:8,knifeAndGlove:true,singleUpdatePerSlot:true,maps:10,mapIcons:10,mapSwitch:true,mapLock:true,mapAllowlist:true,gameCommandsSent:false}));

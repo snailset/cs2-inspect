@@ -8,7 +8,7 @@ const connection=await mysql.createConnection(secrets.database);
 try{const [tables]=await connection.query('SHOW TABLES');assert.ok(tables.length>=6)}finally{await connection.end()}
 const bootstrap=await (await fetch('http://127.0.0.1:17830/api/bootstrap')).json();
 assert.ok(bootstrap.catalog.length>2000);
-for(const kind of ['weapon','knife','glove'])assert.ok(bootstrap.catalog.some(x=>x.kind===kind));
+for(const kind of ['weapon','knife','glove','agent'])assert.ok(bootstrap.catalog.some(x=>x.kind===kind));
 const bridge=await rcon('inspect_ready',secrets.rconPassword);
 assert.match(bridge,/INSPECT_READY \d+/);
 const status=await rcon('status',secrets.rconPassword);

@@ -1,10 +1,10 @@
 {
   "compiler": "PowerShell 7.6.9 Roslyn Add-Type",
   "apiVersion": "1.0.380",
-  "sha256": "d5b678cf44daadb5e22bbad2121360660172306db1e9d01568a6a63a5efa2240",
-  "version": "1.0.1",
-  "built": "2026-11-15",
-  "sourceSha256": "efc1f369e249cba863aa079934726201c2e567f5dc5d7ad1b771bf58f42fefea",
+  "sha256": "c41160d268466b01d30f1674253b688a3c31b21b47975022e3392b7bf58f54ae",
+  "version": "1.1.0",
+  "built": "2026-11-21",
+  "sourceSha256": "0afd8534fae2881ac1098a43d814659832d69ca685f159e84c2cc649c664df25",
   "weaponPaints": "build-472",
   "framework": ".NET 10"
 }

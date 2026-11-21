@@ -27,7 +27,12 @@ const rawSkins=readJSON(path.join(data,'skins_zh-CN.json'));
 const normalize=(x,kind)=>({def:Number(x.weapon_defindex),paint:Number(x.paint),entity:x.weapon_name||'',name:x.paint_name,kind,group:x.paint_name.split('|')[0].replace(/[（(]★[）)]|★/g,'').trim(),skinName:x.paint_name.split('|').slice(1).join('|').trim()||'原版',image:x.image||''});
 const skins=rawSkins.map(x=>normalize(x,Number(x.weapon_defindex)>=500?'knife':'weapon'));
 const gloves=readJSON(path.join(data,'gloves_zh-CN.json')).filter(x=>Number(x.weapon_defindex)>0).map(x=>normalize(x,'glove'));
-const catalog=[...skins,...gloves];
+const agents=readJSON(path.join(data,'agents_zh-CN.json')).filter(row=>row.model!=='null').map(row=>{
+  const match=/\/agent-(\d+)\.png$/.exec(row.image);
+  if(!match||![2,3].includes(Number(row.team)))throw new Error('探员目录格式异常');
+  return {kind:'agent',def:Number(match[1]),paint:0,group:'探员',name:row.agent_name,skinName:row.agent_name,team:Number(row.team),entity:row.model,image:row.image};
+});
+const catalog=[...skins,...gloves,...agents];
 const previews=createPreviewCache(catalog,path.join(base,'data/preview-images'));
 const browserCatalog=catalog.map(({image,...item})=>({...item,preview:`/images/${item.def}/${item.paint}.png`}));
 const stickers=readJSON(path.join(data,'stickers_zh-CN.json')).map(x=>({id:Number(x.id),name:x.name}));
@@ -90,6 +95,7 @@ async function refresh(item){
 function validate(input){
   const item=byItem.get(`${Number(input.def)}:${Number(input.paint)}`);
   if(!item)throw new Error('请选择列表中的有效饰品');
+  if(item.kind==='agent')return {def:item.def,paint:item.paint};
   const seed=Number(input.seed),wear=Number(input.wear);
   if(!Number.isInteger(seed)||seed<0||seed>1000)throw new Error('模板编号须为 0–1000 的整数');
   if(!Number.isFinite(wear)||wear<0||wear>1)throw new Error('磨损须为 0–1');
@@ -109,6 +115,10 @@ async function persistItems(entries){
     await c.beginTransaction();
     for(const v of entries){
     const item=byItem.get(`${v.def}:${v.paint}`);
+    if(item.kind==='agent'){
+      await c.execute('INSERT INTO wp_player_agents (steamid,agent_ct,agent_t) VALUES (?,?,?) ON DUPLICATE KEY UPDATE agent_ct=VALUES(agent_ct),agent_t=VALUES(agent_t)',[profile.steamId,item.entity,item.entity]);
+      continue;
+    }
     for(const team of [2,3]){
       const columns=['steamid','weapon_team','weapon_defindex','weapon_paint_id','weapon_wear','weapon_seed','weapon_nametag','weapon_stattrak','weapon_stattrak_count',...Array.from({length:5},(_,i)=>`weapon_sticker_${i}`)];
       const values=[profile.steamId,team,v.def,v.paint,v.wear,v.seed,v.nametag,v.stattrak?1:0,v.stattrakCount,...v.stickers.map(s=>`${s.id};0;0;0;${s.wear};1;0`)];

@@ -15,7 +15,7 @@ using CounterStrikeSharp.API.Modules.Timers;
 public sealed class LocalInspectBridge : BasePlugin
 {
     public override string ModuleName => "LocalInspectBridge";
-    public override string ModuleVersion => "1.0.1";
+    public override string ModuleVersion => "1.1.0";
     public override string ModuleAuthor => "Local CS2 Inspect";
     public override string ModuleDescription => "Apply one local item after loading its data; preserve other equipment.";
     private const BindingFlags All = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
@@ -141,13 +141,13 @@ public sealed class LocalInspectBridge : BasePlugin
             var active = player!.PlayerPawn.Value!.WeaponServices!.ActiveWeapon.Value;
             var previousDef = Definition(active);
             if (kind == "current") { def = previousDef; kind = IsKnife(def) ? "knife" : "weapon"; }
-            if (kind == "glove" ? !Gloves.Contains(def) : (!wp.Map.ContainsKey(def) && def != 42 && def != 59) || (kind == "knife" ? !IsKnife(def) : kind != "weapon" || IsKnife(def))) {
+            if (kind != "agent" && (kind == "glove" ? !Gloves.Contains(def) : (!wp.Map.ContainsKey(def) && def != 42 && def != 59) || (kind == "knife" ? !IsKnife(def) : kind != "weapon" || IsKnife(def)))) {
                 command.ReplyToCommand("INSPECT_ERROR invalid item"); return;
             }
             foreach (var old in jobs.Values.Where(j => j.status != "pending" && (DateTime.UtcNow - j.Created).TotalMinutes > 5).ToArray()) jobs.Remove(old.id);
             var job = new Job { id = id, Steam = steam, Pawn = player.PlayerPawn.Value!.Handle, kind = kind, requestedDef = def,
                 previousDef = previousDef, PreviousSlot = Slot(previousDef), PreviousName = active?.DesignerName ?? "",
-                TargetSlot = kind == "glove" ? Slot(previousDef) : Slot(def), TargetName = kind == "glove" ? "" : kind == "knife" ? "weapon_knife" : wp.Map[def] };
+                TargetSlot = kind == "glove" ? Slot(previousDef) : Slot(def), TargetName = kind == "agent" || kind == "glove" ? "" : kind == "knife" ? "weapon_knife" : wp.Map[def] };
             jobs[id] = job; pending[steam] = id;
             var info = PlayerInfo(wp, player);
             command.ReplyToCommand("INSPECT_ACCEPTED " + id);
@@ -174,6 +174,14 @@ public sealed class LocalInspectBridge : BasePlugin
     {
         var player = Current(job); if (player == null) return;
         try {
+            if (job.kind == "agent") {
+                wp.Type.GetMethod("GivePlayerAgent", All)!.Invoke(null, new object[] { player });
+                job.appliedDef = job.requestedDef;
+                job.activeDef = Definition(player.PlayerPawn.Value!.WeaponServices!.ActiveWeapon.Value);
+                job.focus = "preserved";
+                job.status = "done"; pending.Remove(job.Steam);
+                return;
+            }
             if (job.kind == "glove") {
                 wp.Type.GetMethod("GivePlayerGloves", All)!.Invoke(wp.Instance, new object[] { player });
                 job.appliedDef = job.requestedDef;
